@@ -1,14 +1,26 @@
 version: "3"
+
+networks:
+  eth-holesky:
+    driver: bridge
+
 services:
   geth:
+    networks:
+      - eth-holesky
     image: ethereum/client-go:v1.13.2
-    pull_policy: always
     container_name: geth
     restart: unless-stopped
+    stop_signal: SIGINT
+    stop_grace_period: 2m
+    healthcheck:
+      test: ["CMD-SHELL", "geth attach --exec eth.blockNumber"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     entrypoint:
       - geth
       - --holesky
-      # - --syncmode=snap
       - --verbosity=3
       - --http
       - --http.corsdomain=*
@@ -28,48 +40,46 @@ services:
       - --metrics
       - --metrics.addr=0.0.0.0
       - --metrics.expensive
+      - --metrics.influxdb 
+      - --metrics.influxdb.endpoint=http://influxdb:8086
+      - --metrics.influxdb.username=geth 
+      - --metrics.influxdb.password=password
     ports:
-      - 30303:30303/tcp
-      - 30303:30303/udp
-      - 8545:8545
-      - 8546:8546
-      - 8551:8551
+      - 30303:30303/tcp # p2p
+      - 30303:30303/udp # p2p
+      - 8545:8545 # rpc
+      - 8546:8546 # ws
+      - 8551:8551 # admin
+      - 6060:6060 # geth metrics
     volumes:
       - ${GETH_DATADIR-./data/geth}:/root/.ethereum
       - ${CONFIG_DATADIR-./data/config}:/config
-    stop_signal: SIGINT
-    stop_grace_period: 2m
-    # healthcheck:
-    #   test: ["CMD-SHELL", "geth attach --exec eth.blockNumber"]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 5
 
-  prysm:
-    # https://github.com/prysmaticlabs/prysm/releases
+  beacon:
+    networks:
+      - eth-holesky
     image: gcr.io/prysmaticlabs/prysm/beacon-chain:v4.1.0-alpha.1
-    pull_policy: always
     container_name: prysm
     restart: unless-stopped
+    stop_signal: SIGINT
     stop_grace_period: 2m
     volumes:
-      - ${PRYSM_DATADIR:-./data/prysm}:/data
+      - ${BEACON_DATADIR:-./data/beacon}:/data
       - ${GETH_DATADIR:-./data/geth}:/geth
       - ${CONFIG_DATADIR:-./data/config}:/config
     depends_on:
       geth:
-        condition: service_healthy
+        condition: service_started
     ports:
-      - 4000:4000
-      - 3500:3500
-      - 8080:8080
-      - 6060:6060
-      - 9090:9090
+      - 4000:4000 # rpc(default)
+      - 3500:3500 # grpc-gateway(default)
+      - 8080:8080 # monitoring(default)
     command:
       - --holesky
       - --datadir=/data
       - --rpc-host=0.0.0.0
       - --grpc-gateway-host=0.0.0.0
+      - --monitoring-host=0.0.0.0
       - --execution-endpoint=http://geth:8551
       - --accept-terms-of-use
       - --enable-debug-rpc-endpoints
@@ -77,4 +87,54 @@ services:
       - --genesis-state=/config/genesis.ssz
       - --checkpoint-sync-url=https://holesky.beaconstate.info
       - --genesis-beacon-api-url=https://holesky.beaconstate.info
-      - --min-sync-peers=7
+      - --min-sync-peers=30
+
+  influxdb:
+    networks:
+      - eth-holesky
+    image: influxdb:1.8
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      - 8086:8086
+    environment:
+      - INFLUXDB_DB=geth
+      - INFLUXDB_ADMIN_ENABLED=true
+      - INFLUXDB_ADMIN_USER=admin
+      - INFLUXDB_ADMIN_PASSWORD=password
+      - INFLUXDB_USER=geth
+      - INFLUXDB_USER_PASSWORD=password
+    volumes:
+      - ${INFLUXDB_DATADIR:-./data/monitoring/influxdb}:/var/lib/influxdb
+
+  prometheus:
+    networks:
+      - eth-holesky
+    image: prom/prometheus
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ${PROMETHEUS_DATADIR:-./data/monitoring/prometheus}:/prometheus
+
+  grafana:
+    networks:
+      - eth-holesky
+    image: grafana/grafana
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - geth
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=password
+    volumes:
+      - ./monitoring/grafana/provisioning/:/etc/grafana/provisioning/:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - ${GRAFANA_DATADIR:-./data/monitoring/grafana}:/var/lib/grafana

@@ -43,10 +43,10 @@ services:
       timeout: 5s
       retries: 5
 
-  prysm:
+  beacon:
     image: gcr.io/prysmaticlabs/prysm/beacon-chain
     pull_policy: always
-    container_name: prysm
+    container_name: beacon
     restart: unless-stopped
     stop_grace_period: 2m
     volumes:
@@ -54,7 +54,7 @@ services:
       - ${GETH_DATADIR:-./data/geth}:/geth
     depends_on:
       geth:
-        condition: service_healthy
+        condition: service_started
     ports:
       - 4000:4000
       - 3500:3500

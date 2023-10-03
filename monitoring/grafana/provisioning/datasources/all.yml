@@ -1,0 +1,29 @@
+apiVersion: 1
+
+deleteDatasources:
+- name: 'Prometheus'
+
+datasources:
+- type: 'prometheus'
+  name: 'Prometheus'
+  access: 'proxy'
+  url: 'http://prometheus:9090'
+  uid: 'XXXCCRAYZPROMETHEUSXXX'
+  editable: true
+  is_default: true
+  org_id: 1
+  version: 1
+
+- type: influxdb
+  name: 'InfluxDB'
+  access: proxy
+  user: geth
+  url: http://influxdb:8086
+  uid: 'XXXCCRAYZINFLUXDBXXX'
+  jsonData:
+    dbName: geth
+    httpMode: GET
+  secureJsonData:
+    password: passoword
+  org_id: 1
+  version: 1
