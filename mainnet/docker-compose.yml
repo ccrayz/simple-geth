@@ -1,14 +1,13 @@
 version: "3"
 services:
   geth:
-    image: ethereum/client-go:v1.13.2
+    image: ethereum/client-go
     pull_policy: always
     container_name: geth
     restart: unless-stopped
     entrypoint:
       - geth
-      - --holesky
-      # - --syncmode=snap
+      - --syncmode=snap
       - --verbosity=3
       - --http
       - --http.corsdomain=*
@@ -24,30 +23,28 @@ services:
       - --authrpc.addr=0.0.0.0
       - --authrpc.port=8551
       - --authrpc.vhosts=*
-      - --authrpc.jwtsecret=/config/jwt.hex
+      - --authrpc.jwtsecret=/root/.ethereum/jwt.hex
       - --metrics
-      - --metrics.addr=0.0.0.0
+      - --metrics.addr=127.0.0.1
       - --metrics.expensive
     ports:
-      - 30303:30303/tcp
+      - 30303:30303
       - 30303:30303/udp
       - 8545:8545
       - 8546:8546
       - 8551:8551
     volumes:
       - ${GETH_DATADIR-./data/geth}:/root/.ethereum
-      - ${CONFIG_DATADIR-./data/config}:/config
     stop_signal: SIGINT
     stop_grace_period: 2m
-    # healthcheck:
-    #   test: ["CMD-SHELL", "geth attach --exec eth.blockNumber"]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 5
+    healthcheck:
+      test: ["CMD-SHELL", "geth attach --exec eth.blockNumber"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   prysm:
-    # https://github.com/prysmaticlabs/prysm/releases
-    image: gcr.io/prysmaticlabs/prysm/beacon-chain:v4.1.0-alpha.1
+    image: gcr.io/prysmaticlabs/prysm/beacon-chain
     pull_policy: always
     container_name: prysm
     restart: unless-stopped
@@ -55,7 +52,6 @@ services:
     volumes:
       - ${PRYSM_DATADIR:-./data/prysm}:/data
       - ${GETH_DATADIR:-./data/geth}:/geth
-      - ${CONFIG_DATADIR:-./data/config}:/config
     depends_on:
       geth:
         condition: service_healthy
@@ -66,15 +62,14 @@ services:
       - 6060:6060
       - 9090:9090
     command:
-      - --holesky
-      - --datadir=/data
-      - --rpc-host=0.0.0.0
-      - --grpc-gateway-host=0.0.0.0
-      - --execution-endpoint=http://geth:8551
       - --accept-terms-of-use
-      - --enable-debug-rpc-endpoints
-      - --jwt-secret=/config/jwt.hex
-      - --genesis-state=/config/genesis.ssz
-      - --checkpoint-sync-url=https://holesky.beaconstate.info
-      - --genesis-beacon-api-url=https://holesky.beaconstate.info
+      - --datadir=/data
+      - --checkpoint-sync-url=https://sync-mainnet.beaconcha.in
+      - --genesis-beacon-api-url=https://sync-mainnet.beaconcha.in
       - --min-sync-peers=7
+      - --execution-endpoint=http://geth:8551
+      - --jwt-secret=/geth/jwt.hex
+      - --rpc-host=0.0.0.0
+      - --rpc-port=4000
+      - --grpc-gateway-corsdomain=*
+      - --grpc-gateway-host=0.0.0.0
