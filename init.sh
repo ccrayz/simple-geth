@@ -24,4 +24,5 @@ if [[ ! -d "./data" ]]; then
     curl -o $CONFIG_DATADIR/genesis.ssz -LJO https://github.com/eth-clients/holesky/raw/main/custom_config_data/genesis.ssz
 fi
 
-echo "Done!"
+echo "Init is Done!"
+echo "After checking the '.env', run the container via 'docker compose up -d'"
