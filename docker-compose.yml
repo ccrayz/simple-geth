@@ -59,7 +59,7 @@ services:
     networks:
       - eth-holesky
     image: gcr.io/prysmaticlabs/prysm/beacon-chain:v4.1.0-alpha.1
-    container_name: prysm
+    container_name: beacon
     restart: unless-stopped
     stop_signal: SIGINT
     stop_grace_period: 2m
